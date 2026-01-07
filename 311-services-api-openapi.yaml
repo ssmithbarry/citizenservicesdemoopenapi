@@ -1,0 +1,424 @@
+openapi: 3.0.1
+info:
+  title: 311 Citizen Services API
+  description: REST API for 311 citizen service requests, status tracking, and citizen profile management
+  version: 1.0.0
+  contact:
+    name: AWS Workshop Team
+  license:
+    name: MIT
+
+servers:
+  - url: ${API_GATEWAY_URL}
+    description: AWS API Gateway endpoint
+
+paths:
+  /service-requests:
+    post:
+      operationId: createServiceRequest
+      summary: Create a new 311 service request
+      description: Create a new service request for issues like potholes, streetlights, noise complaints, and other city services
+      tags:
+        - Service Requests
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - requestType
+                - description
+                - location
+              properties:
+                requestType:
+                  type: string
+                  description: Type of service request
+                  enum: ["pothole", "streetlight", "noise_complaint", "water_leak", "trash_pickup", "park_maintenance", "traffic_signal", "building_permit", "animal_control", "general"]
+                  example: pothole
+                description:
+                  type: string
+                  description: Detailed description of the issue
+                  example: Large pothole on Main Street causing vehicle damage
+                location:
+                  type: string
+                  description: Street address or location description
+                  example: 123 Main Street, Austin, TX
+                phoneNumber:
+                  type: string
+                  description: Citizen's contact phone number
+                  example: "512-555-1234"
+      responses:
+        '201':
+          description: Service request created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    description: Whether the request was successful
+                    example: true
+                  requestId:
+                    type: string
+                    description: Unique service request identifier
+                    example: SR-20240115-12345678
+                  status:
+                    type: string
+                    description: Initial status of the request
+                    example: SUBMITTED
+                  message:
+                    type: string
+                    description: Success message
+                    example: Service request created successfully
+                  estimatedResolution:
+                    type: string
+                    description: Estimated resolution timeframe
+                    example: 3-5 business days
+        '400':
+          description: Bad request - missing or invalid parameters
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message
+                    example: Missing required parameter
+        '401':
+          description: Unauthorized - API key required
+        '500':
+          description: Internal server error
+
+  /service-requests/{requestId}/status:
+    get:
+      operationId: getServiceRequestStatus
+      summary: Get status of a service request
+      description: Look up the current status and details of an existing service request by request ID
+      tags:
+        - Service Requests
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          description: Service request ID to look up
+          schema:
+            type: string
+            example: SR-20240115-12345678
+      responses:
+        '200':
+          description: Service request status retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  requestId:
+                    type: string
+                    description: Service request identifier
+                    example: SR-20240115-12345678
+                  requestType:
+                    type: string
+                    description: Type of service request
+                    example: pothole
+                  description:
+                    type: string
+                    description: Description of the issue
+                    example: Large pothole on Main Street
+                  location:
+                    type: string
+                    description: Location of the issue
+                    example: 123 Main Street, Austin, TX
+                  status:
+                    type: string
+                    description: Current status
+                    enum: [SUBMITTED, IN_PROGRESS, RESOLVED, CLOSED]
+                    example: IN_PROGRESS
+                  submittedDate:
+                    type: string
+                    format: date-time
+                    description: When the request was submitted
+                    example: "2024-01-15T10:30:00Z"
+                  lastUpdated:
+                    type: string
+                    format: date-time
+                    description: When the request was last updated
+                    example: "2024-01-16T14:20:00Z"
+                  assignedDepartment:
+                    type: string
+                    description: Department handling the request
+                    example: Public Works
+                  estimatedResolution:
+                    type: string
+                    description: Estimated resolution timeframe
+                    example: 3-5 business days
+        '404':
+          description: Service request not found
+        '401':
+          description: Unauthorized - API key required
+        '500':
+          description: Internal server error
+
+  /citizens/{phoneNumber}/service-history:
+    get:
+      operationId: getCitizenServiceHistory
+      summary: Get service history for a citizen
+      description: Retrieve all service requests submitted by a citizen using their phone number
+      tags:
+        - Citizen Services
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: phoneNumber
+          in: path
+          required: true
+          description: Citizen's phone number
+          schema:
+            type: string
+            example: "512-555-1234"
+      responses:
+        '200':
+          description: Citizen service history retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  phoneNumber:
+                    type: string
+                    description: Citizen's phone number
+                    example: "512-555-1234"
+                  serviceRequests:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        requestId:
+                          type: string
+                          example: SR-20240115-12345678
+                        requestType:
+                          type: string
+                          example: pothole
+                        description:
+                          type: string
+                          example: Large pothole on Main Street
+                        location:
+                          type: string
+                          example: 123 Main Street, Austin, TX
+                        status:
+                          type: string
+                          example: RESOLVED
+                        submittedDate:
+                          type: string
+                          format: date-time
+                          example: "2024-01-15T10:30:00Z"
+                        lastUpdated:
+                          type: string
+                          format: date-time
+                          example: "2024-01-18T16:45:00Z"
+                  totalRequests:
+                    type: integer
+                    description: Total number of requests by this citizen
+                    example: 3
+        '404':
+          description: No service history found for this phone number
+        '401':
+          description: Unauthorized - API key required
+        '500':
+          description: Internal server error
+
+  /service-requests/search:
+    post:
+      operationId: searchServiceRequests
+      summary: Search service requests
+      description: Search for service requests by various criteria like location, type, or status
+      tags:
+        - Service Requests
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                requestType:
+                  type: string
+                  description: Filter by request type
+                  example: pothole
+                location:
+                  type: string
+                  description: Filter by location (partial match)
+                  example: Main Street
+                status:
+                  type: string
+                  description: Filter by status
+                  enum: [SUBMITTED, IN_PROGRESS, RESOLVED, CLOSED]
+                  example: IN_PROGRESS
+                dateFrom:
+                  type: string
+                  format: date
+                  description: Filter requests from this date
+                  example: "2024-01-01"
+                dateTo:
+                  type: string
+                  format: date
+                  description: Filter requests to this date
+                  example: "2024-01-31"
+      responses:
+        '200':
+          description: Search results retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  serviceRequests:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        requestId:
+                          type: string
+                          example: SR-20240115-12345678
+                        requestType:
+                          type: string
+                          example: pothole
+                        description:
+                          type: string
+                          example: Large pothole on Main Street
+                        location:
+                          type: string
+                          example: 123 Main Street, Austin, TX
+                        status:
+                          type: string
+                          example: IN_PROGRESS
+                        submittedDate:
+                          type: string
+                          format: date-time
+                          example: "2024-01-15T10:30:00Z"
+                        phoneNumber:
+                          type: string
+                          example: "512-555-1234"
+                  totalResults:
+                    type: integer
+                    description: Total number of matching requests
+                    example: 15
+        '400':
+          description: Bad request - invalid search parameters
+        '401':
+          description: Unauthorized - API key required
+        '500':
+          description: Internal server error
+
+  /citizens/{phoneNumber}/profile:
+    put:
+      operationId: updateCitizenProfile
+      summary: Update citizen profile
+      description: Update or create citizen profile information including contact details and preferences
+      tags:
+        - Citizen Services
+      security:
+        - ApiKeyAuth: []
+      parameters:
+        - name: phoneNumber
+          in: path
+          required: true
+          description: Citizen's phone number
+          schema:
+            type: string
+            example: "512-555-1234"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: Citizen's full name
+                  example: John Doe
+                email:
+                  type: string
+                  format: email
+                  description: Citizen's email address
+                  example: john.doe@example.com
+                address:
+                  type: string
+                  description: Citizen's address
+                  example: 123 Main Street, Austin, TX 78701
+                preferredContactMethod:
+                  type: string
+                  description: Preferred contact method
+                  enum: [phone, email, sms]
+                  example: email
+                notificationPreferences:
+                  type: object
+                  description: Notification preferences
+                  properties:
+                    statusUpdates:
+                      type: boolean
+                      example: true
+                    resolutionNotification:
+                      type: boolean
+                      example: true
+      responses:
+        '200':
+          description: Citizen profile updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: Citizen profile updated successfully
+                  profile:
+                    type: object
+                    properties:
+                      phoneNumber:
+                        type: string
+                        example: "512-555-1234"
+                      name:
+                        type: string
+                        example: John Doe
+                      email:
+                        type: string
+                        example: john.doe@example.com
+                      address:
+                        type: string
+                        example: 123 Main Street, Austin, TX 78701
+                      lastUpdated:
+                        type: string
+                        format: date-time
+                        example: "2024-01-15T10:30:00Z"
+        '400':
+          description: Bad request - invalid profile data
+        '401':
+          description: Unauthorized - API key required
+        '500':
+          description: Internal server error
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+tags:
+  - name: Service Requests
+    description: Operations for creating, tracking, and managing 311 service requests
+  - name: Citizen Services
+    description: Operations for citizen profile management and service history
